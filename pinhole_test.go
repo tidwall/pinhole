@@ -21,8 +21,8 @@ func TestPinhole(t *testing.T) {
 	start := time.Now()
 	var ai int
 	for a := 0.0; a < math.Pi*2; a += math.Pi * 2 / 60 {
-		p := New()
 
+		p := New()
 		p.Begin()
 		p.DrawLine(-0.2, -0.2, -0.2, -0.2, -0.2, 0.2)
 		p.DrawLine(0.2, -0.2, -0.2, 0.2, -0.2, 0.2)
@@ -146,11 +146,13 @@ func loadObj(path string) (*object, error) {
 }
 
 func TestGopher(t *testing.T) {
+	start := time.Now()
 	obj, err := loadObj("gopher.obj")
 	if err != nil {
 		t.Fatal(err)
 	}
-
+	fmt.Printf("read object %s\n", time.Since(start))
+	start = time.Now()
 	p := New()
 	for _, faces := range obj.faces {
 		var fx, fy, fz float64
@@ -169,16 +171,25 @@ func TestGopher(t *testing.T) {
 			p.DrawLine(lx, ly, lz, fx, fy, fz)
 		}
 	}
+	fmt.Printf("drawn faces %s\n", time.Since(start))
+	start = time.Now()
 	p.Rotate(0, math.Pi/2, 0)
+	fmt.Printf("rotated %s\n", time.Since(start))
+	start = time.Now()
 	p.Translate(0, 0.2, 4)
+	fmt.Printf("translated %s\n", time.Since(start))
+
+	start = time.Now()
 	opts := *DefaultImageOptions
 	opts.LineWidth = 0.01
 	opts.NoCaps = true
+
 	//opts.Straight = true
 	if err := p.SavePNG("out.png", 500, 500, &opts); err != nil {
 		t.Fatal(err)
 	}
 
+	fmt.Printf("imaged %s\n", time.Since(start))
 	/*
 		data, err := ioutil.ReadFile("gopher.obj")
 		if err != nil {

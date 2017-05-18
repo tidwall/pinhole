@@ -16,10 +16,24 @@ type line struct {
 	nocaps     bool
 }
 
+func (l *line) Center() []float64 {
+	min, max := l.Rect()
+	return []float64{
+		(max[0] + min[0]) / 2,
+		(max[1] + min[1]) / 2,
+		(max[2] + min[2]) / 2,
+	}
+}
+func (l *line) Rect() (min, max []float64) {
+	min, max = minMax(l.x1, l.y1, l.z1, l.x2, l.y2, l.z2)
+	return
+}
+
 type Pinhole struct {
-	lines  []line
+	lines  []*line
 	stack  []int
 	nocaps bool
+	dirty  bool
 }
 
 func New() *Pinhole {
@@ -57,6 +71,7 @@ func (p *Pinhole) Rotate(x, y, z float64) {
 		p.lines[i] = l
 	}
 }
+
 func (p *Pinhole) Translate(x, y, z float64) {
 	var i int
 	if len(p.stack) > 0 {
@@ -72,18 +87,26 @@ func (p *Pinhole) Translate(x, y, z float64) {
 	}
 }
 
-func (p *Pinhole) DrawLine(x1, y1, z1, x2, y2, z2 float64) {
-	for _, l := range p.lines {
-		if (l.x1 == x1 && l.y1 == y1 && l.z1 == z1 && l.x2 == x2 && l.y2 == y2 && l.z2 == z2) ||
-			(l.x1 == x2 && l.y1 == y2 && l.z1 == z2 && l.x2 == x1 && l.y2 == y1 && l.z2 == z1) {
-			return
+func minMax(x1, y1, z1, x2, y2, z2 float64) (min, max []float64) {
+	min = []float64{x1, y1, z1}
+	max = []float64{x2, y2, z2}
+	for i := 0; i < 3; i++ {
+		if min[i] > max[i] {
+			min[i], max[i] = max[i], min[i]
 		}
 	}
-	p.lines = append(p.lines, line{
+	return
+}
+
+var c int
+
+func (p *Pinhole) DrawLine(x1, y1, z1, x2, y2, z2 float64) {
+	l := &line{
 		x1: x1, y1: y1, z1: z1,
 		x2: x2, y2: y2, z2: z2,
 		nocaps: p.nocaps,
-	})
+	}
+	p.lines = append(p.lines, l)
 }
 
 func (p *Pinhole) DrawCircle(x, y, z float64, radius float64) {
