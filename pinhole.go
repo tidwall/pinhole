@@ -8,6 +8,7 @@ import (
 	"os"
 
 	"github.com/fogleman/gg"
+	"github.com/google/btree"
 )
 
 type line struct {
@@ -87,6 +88,72 @@ func (p *Pinhole) Translate(x, y, z float64) {
 	}
 }
 
+func (p *Pinhole) Scale(x, y, z float64) {
+	var i int
+	if len(p.stack) > 0 {
+		i = p.stack[len(p.stack)-1]
+	}
+	for ; i < len(p.lines); i++ {
+		p.lines[i].x1 *= x
+		p.lines[i].y1 *= y
+		p.lines[i].z1 *= z
+		p.lines[i].x2 *= x
+		p.lines[i].y2 *= y
+		p.lines[i].z2 *= z
+	}
+}
+
+func (p *Pinhole) Center() {
+	var i int
+	if len(p.stack) > 0 {
+		i = p.stack[len(p.stack)-1]
+	}
+	minx, miny, minz := math.Inf(+1), math.Inf(+1), math.Inf(+1)
+	maxx, maxy, maxz := math.Inf(-1), math.Inf(-1), math.Inf(-1)
+	for ; i < len(p.lines); i++ {
+		if p.lines[i].x1 < minx {
+			minx = p.lines[i].x1
+		}
+		if p.lines[i].x1 > maxx {
+			maxx = p.lines[i].x1
+		}
+		if p.lines[i].y1 < miny {
+			miny = p.lines[i].y1
+		}
+		if p.lines[i].y1 > maxy {
+			maxy = p.lines[i].y1
+		}
+		if p.lines[i].z1 < minz {
+			minz = p.lines[i].z1
+		}
+		if p.lines[i].z2 > maxz {
+			maxz = p.lines[i].z2
+		}
+		if p.lines[i].x2 < minx {
+			minx = p.lines[i].x2
+		}
+		if p.lines[i].x2 > maxx {
+			maxx = p.lines[i].x2
+		}
+		if p.lines[i].y2 < miny {
+			miny = p.lines[i].y2
+		}
+		if p.lines[i].y2 > maxy {
+			maxy = p.lines[i].y2
+		}
+		if p.lines[i].z2 < minz {
+			minz = p.lines[i].z2
+		}
+		if p.lines[i].z2 > maxz {
+			maxz = p.lines[i].z2
+		}
+	}
+	x := (maxx + minx) / 2
+	y := (maxy + miny) / 2
+	z := (maxz + minz) / 2
+	p.Translate(-x, -y, -z)
+}
+
 func minMax(x1, y1, z1, x2, y2, z2 float64) (min, max []float64) {
 	min = []float64{x1, y1, z1}
 	max = []float64{x2, y2, z2}
@@ -97,8 +164,6 @@ func minMax(x1, y1, z1, x2, y2, z2 float64) (min, max []float64) {
 	}
 	return
 }
-
-var c int
 
 func (p *Pinhole) DrawLine(x1, y1, z1, x2, y2, z2 float64) {
 	l := &line{
@@ -134,8 +199,6 @@ type ImageOptions struct {
 	BGColor   color.Color
 	LineWidth float64
 	Scale     float64
-	NoCaps    bool
-	Straight  bool
 }
 
 var DefaultImageOptions = &ImageOptions{
@@ -143,8 +206,6 @@ var DefaultImageOptions = &ImageOptions{
 	BGColor:   color.Transparent,
 	LineWidth: 1,
 	Scale:     1,
-	NoCaps:    false,
-	Straight:  false,
 }
 
 func (p *Pinhole) Image(width, height int, opts *ImageOptions) *image.RGBA {
@@ -166,37 +227,47 @@ func (p *Pinhole) Image(width, height int, opts *ImageOptions) *image.RGBA {
 	}
 	fwidth, fheight := float64(width), float64(height)
 	focal := math.Min(fwidth, fheight) / 2
-	scale := opts.Scale
-	lineWidth := opts.LineWidth
 	for _, line := range p.lines {
 		x1, y1, z1 := line.x1, line.y1, line.z1
 		x2, y2, z2 := line.x2, line.y2, line.z2
-		px1, py1 := projectPoint(x1, y1, z1, fwidth, fheight, focal, scale)
-		px2, py2 := projectPoint(x2, y2, z2, fwidth, fheight, focal, scale)
-		t1 := lineWidthAtZ(z1, focal) * lineWidth
-		t2 := lineWidthAtZ(z2, focal) * lineWidth
-		var cap1, cap2 bool
-		if opts.Straight {
-		} else {
-			if !opts.NoCaps {
-				if !line.nocaps {
-					cap1 = !caps.has(x1, y1, z1)
-					cap2 = !caps.has(x2, y2, z2)
-				}
-			}
-			drawUnbalancedLineSegment(c, px1, py1, px2, py2, t1, t2, cap1, cap2)
-			if !opts.NoCaps {
-				if cap1 {
-					caps.insert(x1, y1, z1)
-				}
-				if cap2 {
-					caps.insert(x2, y2, z2)
-				}
-			}
+		px1, py1 := projectPoint(x1, y1, z1, fwidth, fheight, focal, opts.Scale)
+		px2, py2 := projectPoint(x2, y2, z2, fwidth, fheight, focal, opts.Scale)
+		if !onscreen(fwidth, fheight, px1, py1, px2, py2) {
+			continue
 		}
+		t1 := lineWidthAtZ(z1, focal) * opts.LineWidth
+		t2 := lineWidthAtZ(z2, focal) * opts.LineWidth
+		var cap1, cap2 bool
+		if !line.nocaps {
+			cap1 = caps.insert(x1, y1, z1)
+			cap2 = caps.insert(x2, y2, z2)
+		}
+		drawUnbalancedLineSegment(c, px1, py1, px2, py2, t1, t2, cap1, cap2)
 	}
 	c.Fill()
 	return img
+}
+func onscreen(w, h float64, x1, y1, x2, y2 float64) bool {
+	amin := [2]float64{0, 0}
+	amax := [2]float64{w, h}
+	var bmin [2]float64
+	var bmax [2]float64
+	if x1 < x2 {
+		bmin[0], bmax[0] = x1, x2
+	} else {
+		bmin[0], bmax[0] = x2, x1
+	}
+	if y1 < y2 {
+		bmin[1], bmax[1] = y1, y2
+	} else {
+		bmin[1], bmax[1] = y2, y1
+	}
+	for i := 0; i < len(amin); i++ {
+		if !(bmin[i] <= amax[i] && bmax[i] >= amin[i]) {
+			return false
+		}
+	}
+	return true
 }
 
 func (p *Pinhole) SavePNG(path string, width, height int, opts *ImageOptions) error {
@@ -230,7 +301,7 @@ func projectPoint(
 }
 
 func lineWidthAtZ(z float64, f float64) float64 {
-	return ((z*-1 + 1) / 2) * f * 0.02
+	return ((z*-1 + 1) / 2) * f * 0.04
 }
 
 func drawUnbalancedLineSegment(c *gg.Context,
@@ -238,23 +309,35 @@ func drawUnbalancedLineSegment(c *gg.Context,
 	t1, t2 float64,
 	cap1, cap2 bool,
 ) {
+	if cap1 && t1 < 2 {
+		cap1 = false
+	}
+	if cap2 && t2 < 2 {
+		cap2 = false
+	}
 	a := lineAngle(x1, y1, x2, y2)
 	dx1, dy1 := destination(x1, y1, a-math.Pi/2, t1/2)
 	dx2, dy2 := destination(x1, y1, a+math.Pi/2, t1/2)
 	dx3, dy3 := destination(x2, y2, a+math.Pi/2, t2/2)
 	dx4, dy4 := destination(x2, y2, a-math.Pi/2, t2/2)
 	c.MoveTo(dx1, dy1)
-	c.LineTo(dx2, dy2)
+	if cap1 {
+		ax1, ay1 := destination(dx1, dy1, a-math.Pi*2, t1*0.552284749831)
+		ax2, ay2 := destination(dx2, dy2, a-math.Pi*2, t1*0.552284749831)
+		c.CubicTo(ax1, ay1, ax2, ay2, dx2, dy2)
+	} else {
+		c.LineTo(dx2, dy2)
+	}
 	c.LineTo(dx3, dy3)
-	c.LineTo(dx4, dy4)
+	if cap2 {
+		ax1, ay1 := destination(dx3, dy3, a-math.Pi*2, -t2*0.552284749831)
+		ax2, ay2 := destination(dx4, dy4, a-math.Pi*2, -t2*0.552284749831)
+		c.CubicTo(ax1, ay1, ax2, ay2, dx4, dy4)
+	} else {
+		c.LineTo(dx4, dy4)
+	}
 	c.LineTo(dx1, dy1)
 	c.ClosePath()
-	if cap1 {
-		c.DrawCircle(x1, y1, t1/2)
-	}
-	if cap2 {
-		c.DrawCircle(x2, y2, t2/2)
-	}
 	a = a*180/math.Pi - 90
 	if a < 0 {
 		a += 360
@@ -290,27 +373,42 @@ func rotate(x, y, z float64, q float64, which int) (dx, dy, dz float64) {
 	return
 }
 
-// really lazy structure.
-type capTree struct {
-	caps [][3]float64
+type capItem struct {
+	point [3]float64
 }
 
-func newCapTree() *capTree {
-	return &capTree{}
-}
-
-func (tr *capTree) insert(x, y, z float64) {
-	if !tr.has(x, y, z) {
-		tr.caps = append(tr.caps, [3]float64{x, y, z})
-	}
-}
-
-func (tr *capTree) has(x, y, z float64) bool {
-	c := [3]float64{x, y, z}
-	for _, cap := range tr.caps {
-		if cap == c {
+func (a *capItem) Less(v btree.Item) bool {
+	b := v.(*capItem)
+	for i := 2; i >= 0; i-- {
+		if a.point[i] < b.point[i] {
 			return true
+		}
+		if a.point[i] > b.point[i] {
+			return false
 		}
 	}
 	return false
+}
+
+// really lazy structure.
+type capTree struct {
+	tr *btree.BTree
+}
+
+func newCapTree() *capTree {
+	return &capTree{
+		tr: btree.New(9),
+	}
+}
+
+func (tr *capTree) insert(x, y, z float64) bool {
+	if tr.has(x, y, z) {
+		return false
+	}
+	tr.tr.ReplaceOrInsert(&capItem{point: [3]float64{x, y, z}})
+	return true
+}
+
+func (tr *capTree) has(x, y, z float64) bool {
+	return tr.tr.Has(&capItem{point: [3]float64{x, y, z}})
 }
