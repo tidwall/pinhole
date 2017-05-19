@@ -57,7 +57,7 @@ func main() {
 		p.Rotate(0, step, 0)
 		fmt.Printf("frame %d/%d, %f\n", i, n, a)
 		if i == 0 {
-			p.SavePNG("earth.png", 1024, 1024, &opts)
+			p.SavePNG("earth.png", 750, 750, &opts)
 		}
 		img := p.Image(750, 750, &opts)
 		images = append(images, img)
