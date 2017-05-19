@@ -464,6 +464,15 @@ func (p *Pinhole) LoadObj(r io.Reader) error {
 	}
 	var verts [][3]float64
 	for ln, line := range strings.Split(string(data), "\n") {
+		for {
+			nline := strings.Replace(line, "  ", " ", -1)
+			if len(nline) < len(line) {
+				line = nline
+				continue
+			}
+			break
+		}
+		line = strings.TrimSpace(line)
 		if strings.HasPrefix(line, "v ") {
 			parts := strings.Split(line[2:], " ")
 			if len(parts) >= 3 {
