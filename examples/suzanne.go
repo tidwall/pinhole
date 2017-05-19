@@ -15,7 +15,7 @@ import (
 
 func main() {
 	p := pinhole.New()
-	f, err := os.Open("gopher.obj")
+	f, err := os.Open("suzanne.obj")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -24,11 +24,11 @@ func main() {
 		log.Fatal(err)
 	}
 
-	// gopher is a little offscreen, scale and center it
-	p.Scale(0.22, 0.22, 0.22)
+	// suzanne is a little offscreen, scale and center it
+	p.Scale(0.50, 0.50, 0.50)
 	p.Center()
 	opts := *pinhole.DefaultImageOptions
-	opts.LineWidth = 0.02 // thin lines
+	opts.LineWidth = 0.3 // thin lines
 	var n = 60
 	var i int
 	var images []image.Image
@@ -37,7 +37,7 @@ func main() {
 		p.Rotate(0, step, 0)
 		fmt.Printf("frame %d/%d, %f\n", i, n, a)
 		if i == 0 {
-			p.SavePNG("gopher.png", 750, 750, &opts)
+			p.SavePNG("suzanne.png", 750, 750, &opts)
 		}
 		img := p.Image(750, 750, &opts)
 		images = append(images, img)
@@ -59,7 +59,7 @@ func main() {
 		outGif.Image = append(outGif.Image, inGif)
 		outGif.Delay = append(outGif.Delay, 0)
 	}
-	f, _ = os.OpenFile("gopher.gif", os.O_WRONLY|os.O_CREATE, 0600)
+	f, _ = os.OpenFile("suzanne.gif", os.O_WRONLY|os.O_CREATE, 0600)
 	defer f.Close()
 	gif.EncodeAll(f, outGif)
 }

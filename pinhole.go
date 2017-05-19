@@ -1,20 +1,55 @@
 package pinhole
 
 import (
+	"fmt"
 	"image"
 	"image/color"
 	"image/png"
+	"io"
+	"io/ioutil"
 	"math"
 	"os"
+	"sort"
+	"strconv"
+	"strings"
 
 	"github.com/fogleman/gg"
 	"github.com/google/btree"
 )
 
+const circleSteps = 45
+
 type line struct {
 	x1, y1, z1 float64
 	x2, y2, z2 float64
 	nocaps     bool
+	color      color.Color
+	scale      float64
+	circle     bool
+	cfirst     *line
+	cprev      *line
+	cnext      *line
+
+	drawcoords *fourcorners
+}
+
+func (l *line) Rect() (min, max [3]float64) {
+	if l.x1 < l.x2 {
+		min[0], max[0] = l.x1, l.x2
+	} else {
+		min[0], max[0] = l.x2, l.x1
+	}
+	if l.y1 < l.y2 {
+		min[1], max[1] = l.y1, l.y2
+	} else {
+		min[1], max[1] = l.y2, l.y1
+	}
+	if l.z1 < l.z2 {
+		min[2], max[2] = l.z1, l.z2
+	} else {
+		min[2], max[2] = l.z2, l.z1
+	}
+	return
 }
 
 func (l *line) Center() []float64 {
@@ -25,22 +60,15 @@ func (l *line) Center() []float64 {
 		(max[2] + min[2]) / 2,
 	}
 }
-func (l *line) Rect() (min, max []float64) {
-	min, max = minMax(l.x1, l.y1, l.z1, l.x2, l.y2, l.z2)
-	return
-}
 
 type Pinhole struct {
-	lines  []*line
-	stack  []int
-	nocaps bool
-	dirty  bool
+	lines []*line
+	stack []int
 }
 
 func New() *Pinhole {
 	return &Pinhole{}
 }
-
 func (p *Pinhole) Begin() {
 	p.stack = append(p.stack, len(p.lines))
 }
@@ -49,7 +77,6 @@ func (p *Pinhole) End() {
 		p.stack = p.stack[:len(p.stack)-1]
 	}
 }
-
 func (p *Pinhole) Rotate(x, y, z float64) {
 	var i int
 	if len(p.stack) > 0 {
@@ -103,6 +130,15 @@ func (p *Pinhole) Scale(x, y, z float64) {
 	}
 }
 
+func (p *Pinhole) Colorize(color color.Color) {
+	var i int
+	if len(p.stack) > 0 {
+		i = p.stack[len(p.stack)-1]
+	}
+	for ; i < len(p.lines); i++ {
+		p.lines[i].color = color
+	}
+}
 func (p *Pinhole) Center() {
 	var i int
 	if len(p.stack) > 0 {
@@ -154,63 +190,101 @@ func (p *Pinhole) Center() {
 	p.Translate(-x, -y, -z)
 }
 
-func minMax(x1, y1, z1, x2, y2, z2 float64) (min, max []float64) {
-	min = []float64{x1, y1, z1}
-	max = []float64{x2, y2, z2}
-	for i := 0; i < 3; i++ {
-		if min[i] > max[i] {
-			min[i], max[i] = max[i], min[i]
-		}
-	}
-	return
+func (p *Pinhole) DrawDot(x, y, z float64, radius float64) {
+	p.DrawLine(x, y, z, x, y, z)
+	p.lines[len(p.lines)-1].scale = 10 / 0.1 * radius
 }
 
 func (p *Pinhole) DrawLine(x1, y1, z1, x2, y2, z2 float64) {
 	l := &line{
 		x1: x1, y1: y1, z1: z1,
 		x2: x2, y2: y2, z2: z2,
-		nocaps: p.nocaps,
+		color: color.Black,
+		scale: 1,
 	}
 	p.lines = append(p.lines, l)
 }
-
 func (p *Pinhole) DrawCircle(x, y, z float64, radius float64) {
-	p.nocaps = true
 	var fx, fy, fz float64
 	var lx, ly, lz float64
-	steps := 180.0
-	for i := float64(0); i < steps; i++ {
+	var first, prev *line
+	// we go one beyond the steps because we need to join at the end
+	for i := float64(0); i <= circleSteps; i++ {
 		var dx, dy, dz float64
-		dx, dy = destination(x, y, (math.Pi*2)/steps*i, radius)
+		dx, dy = destination(x, y, (math.Pi*2)/circleSteps*i, radius)
 		dz = z
 		if i > 0 {
-			p.DrawLine(lx, ly, lz, dx, dy, dz)
+			if i == circleSteps {
+				p.DrawLine(lx, ly, lz, fx, fy, fz)
+			} else {
+				p.DrawLine(lx, ly, lz, dx, dy, dz)
+			}
+			line := p.lines[len(p.lines)-1]
+			line.nocaps = true
+			line.circle = true
+			if first == nil {
+				first = line
+			}
+			line.cfirst = first
+			line.cprev = prev
+			if prev != nil {
+				prev.cnext = line
+			}
+			prev = line
+
 		} else {
 			fx, fy, fz = dx, dy, dz
 		}
 		lx, ly, lz = dx, dy, dz
 	}
-	p.DrawLine(lx, ly, lz, fx, fy, fz)
-	p.nocaps = false
 }
 
 type ImageOptions struct {
-	FGColor   color.Color
 	BGColor   color.Color
 	LineWidth float64
 	Scale     float64
 }
 
 var DefaultImageOptions = &ImageOptions{
-	FGColor:   color.Black,
-	BGColor:   color.Transparent,
+	BGColor:   color.White,
 	LineWidth: 1,
 	Scale:     1,
 }
 
+type byDistance []*line
+
+func (a byDistance) Len() int {
+	return len(a)
+}
+func (a byDistance) Less(i, j int) bool {
+	imin, imax := a[i].Rect()
+	jmin, jmax := a[j].Rect()
+	for i := 2; i >= 0; i-- {
+		if imax[i] > jmax[i] {
+			return i == 2
+		}
+		if imax[i] < jmax[i] {
+			return i != 2
+		}
+		if imin[i] > jmin[i] {
+			return i == 2
+		}
+		if imin[i] < jmin[i] {
+			return i != 2
+		}
+	}
+	return false
+}
+func (a byDistance) Swap(i, j int) {
+	a[i], a[j] = a[j], a[i]
+}
 func (p *Pinhole) Image(width, height int, opts *ImageOptions) *image.RGBA {
 	if opts == nil {
 		opts = DefaultImageOptions
+	}
+	sort.Sort(byDistance(p.lines))
+	for _, line := range p.lines {
+		line.drawcoords = nil
 	}
 	img := image.NewRGBA(image.Rect(0, 0, width, height))
 	c := gg.NewContextForRGBA(img)
@@ -219,33 +293,145 @@ func (p *Pinhole) Image(width, height int, opts *ImageOptions) *image.RGBA {
 		c.DrawRectangle(0, 0, float64(width), float64(height))
 		c.Fill()
 	}
-	caps := newCapTree()
-	if opts.FGColor != nil {
-		c.SetColor(opts.FGColor)
-	} else {
-		c.SetRGB(0, 0, 0)
-	}
+
+	capsMap := make(map[color.Color]*capTree)
+	var ccolor color.Color
+	var caps *capTree
 	fwidth, fheight := float64(width), float64(height)
 	focal := math.Min(fwidth, fheight) / 2
-	for _, line := range p.lines {
+	maybeDraw := func(line *line) *fourcorners {
 		x1, y1, z1 := line.x1, line.y1, line.z1
 		x2, y2, z2 := line.x2, line.y2, line.z2
 		px1, py1 := projectPoint(x1, y1, z1, fwidth, fheight, focal, opts.Scale)
 		px2, py2 := projectPoint(x2, y2, z2, fwidth, fheight, focal, opts.Scale)
 		if !onscreen(fwidth, fheight, px1, py1, px2, py2) {
-			continue
+			return nil
 		}
-		t1 := lineWidthAtZ(z1, focal) * opts.LineWidth
-		t2 := lineWidthAtZ(z2, focal) * opts.LineWidth
+		t1 := lineWidthAtZ(z1, focal) * opts.LineWidth * line.scale
+		t2 := lineWidthAtZ(z2, focal) * opts.LineWidth * line.scale
 		var cap1, cap2 bool
 		if !line.nocaps {
 			cap1 = caps.insert(x1, y1, z1)
 			cap2 = caps.insert(x2, y2, z2)
 		}
-		drawUnbalancedLineSegment(c, px1, py1, px2, py2, t1, t2, cap1, cap2)
+		return drawUnbalancedLineSegment(c,
+			px1, py1, px2, py2,
+			t1, t2,
+			cap1, cap2,
+			line.circle,
+		)
+	}
+	for _, line := range p.lines {
+		if line.color != ccolor {
+			c.Fill()
+			ccolor = line.color
+			caps = capsMap[ccolor]
+			if caps == nil {
+				caps = newCapTree()
+				capsMap[ccolor] = caps
+			}
+			c.SetColor(ccolor)
+		}
+		if line.circle {
+			if line.drawcoords == nil {
+				// need to process the coords for all segments belonging to
+				// the current circle segment.
+				// first get the basic estimates
+				var coords []*fourcorners
+				seg := line.cfirst
+				for seg != nil {
+					seg.drawcoords = maybeDraw(seg)
+					coords = append(coords, seg.drawcoords)
+					seg = seg.cnext
+				}
+				// next reprocess to join the midpoints
+				for i := 0; i < len(coords); i++ {
+					var line1, line2 *fourcorners
+					if i == 0 {
+						line1 = coords[len(coords)-1]
+					} else {
+						line1 = coords[i-1]
+					}
+					line2 = coords[i]
+					midx1 := (line2.x1 + line1.x4) / 2
+					midy1 := (line2.y1 + line1.y4) / 2
+					midx2 := (line2.x2 + line1.x3) / 2
+					midy2 := (line2.y2 + line1.y3) / 2
+					line2.x1 = midx1
+					line2.y1 = midy1
+					line1.x4 = midx1
+					line1.y4 = midy1
+					line2.x2 = midx2
+					line2.y2 = midy2
+					line1.x3 = midx2
+					line1.y3 = midy2
+
+				}
+			}
+			// draw the cached coords
+			c.MoveTo(line.drawcoords.x1, line.drawcoords.y1)
+			c.LineTo(line.drawcoords.x2, line.drawcoords.y2)
+			c.LineTo(line.drawcoords.x3, line.drawcoords.y3)
+			c.LineTo(line.drawcoords.x4, line.drawcoords.y4)
+			c.LineTo(line.drawcoords.x1, line.drawcoords.y1)
+			c.ClosePath()
+		} else {
+			maybeDraw(line)
+		}
 	}
 	c.Fill()
 	return img
+}
+
+type fourcorners struct {
+	x1, y1, x2, y2, x3, y3, x4, y4 float64
+}
+
+func drawUnbalancedLineSegment(c *gg.Context,
+	x1, y1, x2, y2 float64,
+	t1, t2 float64,
+	cap1, cap2 bool,
+	circleSegment bool,
+) *fourcorners {
+	if x1 == x2 && y1 == y2 {
+		c.DrawCircle(x1, y1, t1/2)
+		return nil
+	}
+
+	a := lineAngle(x1, y1, x2, y2)
+	dx1, dy1 := destination(x1, y1, a-math.Pi/2, t1/2)
+	dx2, dy2 := destination(x1, y1, a+math.Pi/2, t1/2)
+	dx3, dy3 := destination(x2, y2, a+math.Pi/2, t2/2)
+	dx4, dy4 := destination(x2, y2, a-math.Pi/2, t2/2)
+	if circleSegment {
+		return &fourcorners{dx1, dy1, dx2, dy2, dx3, dy3, dx4, dy4}
+	}
+	const cubicCorner = 1.0 / 3 * 2 //0.552284749831
+	if cap1 && t1 < 2 {
+		cap1 = false
+	}
+	if cap2 && t2 < 2 {
+		cap2 = false
+	}
+	c.MoveTo(dx1, dy1)
+	if cap1 {
+		ax1, ay1 := destination(dx1, dy1, a-math.Pi*2, t1*cubicCorner)
+		ax2, ay2 := destination(dx2, dy2, a-math.Pi*2, t1*cubicCorner)
+		c.CubicTo(ax1, ay1, ax2, ay2, dx2, dy2)
+	} else {
+		c.LineTo(dx2, dy2)
+	}
+	c.LineTo(dx3, dy3)
+	if cap2 {
+		ax1, ay1 := destination(dx3, dy3, a-math.Pi*2, -t2*cubicCorner)
+		ax2, ay2 := destination(dx4, dy4, a-math.Pi*2, -t2*cubicCorner)
+		c.CubicTo(ax1, ay1, ax2, ay2, dx4, dy4)
+	} else {
+		c.LineTo(dx4, dy4)
+	}
+	c.LineTo(dx1, dy1)
+	c.ClosePath()
+	return nil
 }
 func onscreen(w, h float64, x1, y1, x2, y2 float64) bool {
 	amin := [2]float64{0, 0}
@@ -268,6 +454,62 @@ func onscreen(w, h float64, x1, y1, x2, y2 float64) bool {
 		}
 	}
 	return true
+}
+
+func (p *Pinhole) LoadObj(r io.Reader) error {
+	var faces [][][3]float64
+	data, err := ioutil.ReadAll(r)
+	if err != nil {
+		return err
+	}
+	var verts [][3]float64
+	for ln, line := range strings.Split(string(data), "\n") {
+		if strings.HasPrefix(line, "v ") {
+			parts := strings.Split(line[2:], " ")
+			if len(parts) >= 3 {
+				verts = append(verts, [3]float64{})
+				for j := 0; j < 3; j++ {
+					if verts[len(verts)-1][j], err = strconv.ParseFloat(parts[j], 64); err != nil {
+						return fmt.Errorf("line %d: %s", ln+1, err.Error())
+					}
+				}
+			}
+		} else if strings.HasPrefix(line, "f ") {
+			parts := strings.Split(line[2:], " ")
+			if len(parts) >= 3 {
+				faces = append(faces, [][3]float64{})
+				for _, part := range parts {
+					part = strings.Split(part, "/")[0]
+					idx, err := strconv.ParseUint(part, 10, 64)
+					if err != nil {
+						return fmt.Errorf("line %d: %s", ln+1, err.Error())
+					}
+					if int(idx) > len(verts) {
+						return fmt.Errorf("line %d: invalid vert index: %d", ln+1, idx)
+					}
+					faces[len(faces)-1] = append(faces[len(faces)-1], verts[idx-1])
+				}
+			}
+		}
+	}
+	for _, faces := range faces {
+		var fx, fy, fz float64
+		var lx, ly, lz float64
+		var i int
+		for _, face := range faces {
+			if i == 0 {
+				fx, fy, fz = face[0], face[1], face[2]
+			} else {
+				p.DrawLine(lx, ly, lz, face[0], face[1], face[2])
+			}
+			lx, ly, lz = face[0], face[1], face[2]
+			i++
+		}
+		if i > 1 {
+			p.DrawLine(lx, ly, lz, fx, fy, fz)
+		}
+	}
+	return nil
 }
 
 func (p *Pinhole) SavePNG(path string, width, height int, opts *ImageOptions) error {
@@ -302,46 +544,6 @@ func projectPoint(
 
 func lineWidthAtZ(z float64, f float64) float64 {
 	return ((z*-1 + 1) / 2) * f * 0.04
-}
-
-func drawUnbalancedLineSegment(c *gg.Context,
-	x1, y1, x2, y2 float64,
-	t1, t2 float64,
-	cap1, cap2 bool,
-) {
-	if cap1 && t1 < 2 {
-		cap1 = false
-	}
-	if cap2 && t2 < 2 {
-		cap2 = false
-	}
-	a := lineAngle(x1, y1, x2, y2)
-	dx1, dy1 := destination(x1, y1, a-math.Pi/2, t1/2)
-	dx2, dy2 := destination(x1, y1, a+math.Pi/2, t1/2)
-	dx3, dy3 := destination(x2, y2, a+math.Pi/2, t2/2)
-	dx4, dy4 := destination(x2, y2, a-math.Pi/2, t2/2)
-	c.MoveTo(dx1, dy1)
-	if cap1 {
-		ax1, ay1 := destination(dx1, dy1, a-math.Pi*2, t1*0.552284749831)
-		ax2, ay2 := destination(dx2, dy2, a-math.Pi*2, t1*0.552284749831)
-		c.CubicTo(ax1, ay1, ax2, ay2, dx2, dy2)
-	} else {
-		c.LineTo(dx2, dy2)
-	}
-	c.LineTo(dx3, dy3)
-	if cap2 {
-		ax1, ay1 := destination(dx3, dy3, a-math.Pi*2, -t2*0.552284749831)
-		ax2, ay2 := destination(dx4, dy4, a-math.Pi*2, -t2*0.552284749831)
-		c.CubicTo(ax1, ay1, ax2, ay2, dx4, dy4)
-	} else {
-		c.LineTo(dx4, dy4)
-	}
-	c.LineTo(dx1, dy1)
-	c.ClosePath()
-	a = a*180/math.Pi - 90
-	if a < 0 {
-		a += 360
-	}
 }
 
 func lineAngle(x1, y1, x2, y2 float64) float64 {
