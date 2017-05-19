@@ -5,8 +5,8 @@
 
 3D Wireframe Drawing Library for Go
 
-<img src="http://i.imgur.com/mYfYtsI.jpg" width="300" height="300"><img src="http://i.imgur.com/WtGLS2P.jpg" width="300" height="300">
-<img src="http://i.imgur.com/SuviZSA.jpg" width="300" height="300"><img src="http://i.imgur.com/Wvs25iH.jpg" width="300" height="300">
+<img src="http://i.imgur.com/EhtVA6C.jpg" width="300" height="300" alt="earth"><img src="http://i.imgur.com/fKe1N3E.jpg" width="300" height="300" alt="shapes">
+<img src="http://i.imgur.com/qQRqGPe.jpg" width="300" height="300" alt="spiral"><img src="http://i.imgur.com/FbO8tY4.jpg" width="300" height="300" alt="gopher">
 
 ## Why does this exist?
 
