@@ -49,7 +49,7 @@ func main() {
 	p.Scale(1.1, 1.1, 1.1)
 	opts := *pinhole.DefaultImageOptions
 	opts.LineWidth = 0.05 // thin lines
-	var n = 48
+	var n = 60
 	var i int
 	var images []image.Image
 	var step = math.Pi * 2 / float64(n)

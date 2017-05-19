@@ -304,7 +304,7 @@ func (p *Pinhole) Image(width, height int, opts *ImageOptions) *image.RGBA {
 		x2, y2, z2 := line.x2, line.y2, line.z2
 		px1, py1 := projectPoint(x1, y1, z1, fwidth, fheight, focal, opts.Scale)
 		px2, py2 := projectPoint(x2, y2, z2, fwidth, fheight, focal, opts.Scale)
-		if !onscreen(fwidth, fheight, px1, py1, px2, py2) {
+		if !onscreen(fwidth, fheight, px1, py1, px2, py2) && !line.circle {
 			return nil
 		}
 		t1 := lineWidthAtZ(z1, focal) * opts.LineWidth * line.scale
@@ -341,6 +341,9 @@ func (p *Pinhole) Image(width, height int, opts *ImageOptions) *image.RGBA {
 				seg := line.cfirst
 				for seg != nil {
 					seg.drawcoords = maybeDraw(seg)
+					if seg.drawcoords == nil {
+						panic("nil!")
+					}
 					coords = append(coords, seg.drawcoords)
 					seg = seg.cnext
 				}
@@ -369,11 +372,11 @@ func (p *Pinhole) Image(width, height int, opts *ImageOptions) *image.RGBA {
 				}
 			}
 			// draw the cached coords
-			c.MoveTo(line.drawcoords.x1, line.drawcoords.y1)
-			c.LineTo(line.drawcoords.x2, line.drawcoords.y2)
-			c.LineTo(line.drawcoords.x3, line.drawcoords.y3)
-			c.LineTo(line.drawcoords.x4, line.drawcoords.y4)
-			c.LineTo(line.drawcoords.x1, line.drawcoords.y1)
+			c.MoveTo(line.drawcoords.x1-math.SmallestNonzeroFloat64, line.drawcoords.y1-math.SmallestNonzeroFloat64)
+			c.LineTo(line.drawcoords.x2-math.SmallestNonzeroFloat64, line.drawcoords.y2-math.SmallestNonzeroFloat64)
+			c.LineTo(line.drawcoords.x3+math.SmallestNonzeroFloat64, line.drawcoords.y3+math.SmallestNonzeroFloat64)
+			c.LineTo(line.drawcoords.x4+math.SmallestNonzeroFloat64, line.drawcoords.y4+math.SmallestNonzeroFloat64)
+			c.LineTo(line.drawcoords.x1-math.SmallestNonzeroFloat64, line.drawcoords.y1-math.SmallestNonzeroFloat64)
 			c.ClosePath()
 		} else {
 			maybeDraw(line)
