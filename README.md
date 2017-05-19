@@ -50,7 +50,7 @@ p.DrawLine(-0.3, -0.3, 0.3, 0.3, -0.3, 0.3)
 p.DrawLine(0.3, -0.3, 0.3, 0.3, 0.3, 0.3)
 p.DrawLine(0.3, 0.3, 0.3, -0.3, 0.3, 0.3)
 p.DrawLine(-0.3, 0.3, 0.3, -0.3, -0.3, 0.3)
-p.SavePNG("cube.png", 500, 500)
+p.SavePNG("cube.png", 500, 500, nil)
 ```
 
 <img src="http://i.imgur.com/ofJ2T7Y.jpg" width="300" height="300">
@@ -62,7 +62,7 @@ Rotate the cube:
 p := pinhole.New()
 // ... omited DrawLines
 p.Rotate(math.Pi/3, math.Pi/6, 0)
-p.SavePNG("cube.png", 500, 500)
+p.SavePNG("cube.png", 500, 500, nil)
 ```
 
 <img src="http://i.imgur.com/UewuE4L.jpg" width="300" height="300">
@@ -81,7 +81,7 @@ p.Translate(-0.6, -0.4, 0)
 p.Colorize(color.RGBA{255, 0, 0, 255})
 p.End()
 
-p.SavePNG("cube.png", 500, 500)
+p.SavePNG("cube.png", 500, 500, nil)
 ```
 
 <img src="http://i.imgur.com/UafJsKW.jpg" width="300" height="300">
