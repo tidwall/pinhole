@@ -10,7 +10,7 @@
 
 ## Why does this exist?
 
-I created this because I needed a software based 3D rendering library with a very simple API for visualizing data structures.
+I needed a CPU based 3D rendering library with a very simple API for visualizing data structures. No bells or whistles, just clean lines and colid colors.
 
 ## Getting Started
 
@@ -60,7 +60,7 @@ Rotate the cube:
 
 ```go
 p := pinhole.New()
-// ... omited DrawLines
+// ... omitted DrawLines
 p.Rotate(math.Pi/3, math.Pi/6, 0)
 p.SavePNG("cube.png", 500, 500, nil)
 ```
@@ -71,7 +71,7 @@ Add, rotate, and transform a circle:
 
 ```go
 p := pinhole.New()
-// ... omited DrawLines
+// ... omitted DrawLines
 p.Rotate(math.Pi/3, math.Pi/6, 0)
 
 p.Begin()
