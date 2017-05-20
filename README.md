@@ -10,7 +10,7 @@
 
 ## Why does this exist?
 
-I needed a CPU based 3D rendering library with a very simple API for visualizing data structures. No bells or whistles, just clean lines and colid colors.
+I needed a CPU based 3D rendering library with a very simple API for visualizing data structures. No bells or whistles, just clean lines and solid colors.
 
 ## Getting Started
 
