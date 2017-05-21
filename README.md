@@ -26,7 +26,7 @@ This will retrieve the library.
 
 ### Using
 
-The coordinate space has a locked origin of `0,0,0` with the min/max boundaries or `-1,-1,-1` to `+1,+1,+1`.
+The coordinate space has a locked origin of `0,0,0` with the min/max boundaries of `-1,-1,-1` to `+1,+1,+1`.
 The `Z` coordinate extends from `-1` (nearest) to `+1` (farthest).
 
 There are three types of shapes; `line`, `circle`, and `dot`. 
