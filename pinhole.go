@@ -323,7 +323,6 @@ func (p *Pinhole) Image(width, height int, opts *ImageOptions) *image.RGBA {
 	}
 	for _, line := range p.lines {
 		if line.color != ccolor {
-			c.Fill()
 			ccolor = line.color
 			caps = capsMap[ccolor]
 			if caps == nil {
@@ -381,8 +380,8 @@ func (p *Pinhole) Image(width, height int, opts *ImageOptions) *image.RGBA {
 		} else {
 			maybeDraw(line)
 		}
+		c.Fill()
 	}
-	c.Fill()
 	return img
 }
 
