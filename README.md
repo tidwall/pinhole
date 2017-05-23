@@ -5,12 +5,12 @@
 
 3D Wireframe Drawing Library for Go
 
-<img src="http://i.imgur.com/mYfYtsI.jpg" width="300" height="300"><img src="http://i.imgur.com/WtGLS2P.jpg" width="300" height="300">
-<img src="http://i.imgur.com/SuviZSA.jpg" width="300" height="300"><img src="http://i.imgur.com/Wvs25iH.jpg" width="300" height="300">
+<img src="http://i.imgur.com/EhtVA6C.jpg" width="300" height="300" alt="earth"><img src="http://i.imgur.com/fKe1N3E.jpg" width="300" height="300" alt="shapes">
+<img src="http://i.imgur.com/qQRqGPe.jpg" width="300" height="300" alt="spiral"><img src="http://i.imgur.com/FbO8tY4.jpg" width="300" height="300" alt="gopher">
 
 ## Why does this exist?
 
-I created this because I needed a software based 3D rendering library with a very simple API for visualizing data structures.
+I needed a CPU based 3D rendering library with a very simple API for visualizing data structures. No bells or whistles, just clean lines and solid colors.
 
 ## Getting Started
 
@@ -26,7 +26,7 @@ This will retrieve the library.
 
 ### Using
 
-The coordinate space has a locked origin of `0,0,0` with the min/max boundaries or `-1,-1,-1` to `+1,+1,+1`.
+The coordinate space has a locked origin of `0,0,0` with the min/max boundaries of `-1,-1,-1` to `+1,+1,+1`.
 The `Z` coordinate extends from `-1` (nearest) to `+1` (farthest).
 
 There are three types of shapes; `line`, `circle`, and `dot`. 
@@ -50,7 +50,7 @@ p.DrawLine(-0.3, -0.3, 0.3, 0.3, -0.3, 0.3)
 p.DrawLine(0.3, -0.3, 0.3, 0.3, 0.3, 0.3)
 p.DrawLine(0.3, 0.3, 0.3, -0.3, 0.3, 0.3)
 p.DrawLine(-0.3, 0.3, 0.3, -0.3, -0.3, 0.3)
-p.SavePNG("cube.png", 500, 500)
+p.SavePNG("cube.png", 500, 500, nil)
 ```
 
 <img src="http://i.imgur.com/ofJ2T7Y.jpg" width="300" height="300">
@@ -60,9 +60,9 @@ Rotate the cube:
 
 ```go
 p := pinhole.New()
-// ... omited DrawLines
+// ... omitted DrawLines
 p.Rotate(math.Pi/3, math.Pi/6, 0)
-p.SavePNG("cube.png", 500, 500)
+p.SavePNG("cube.png", 500, 500, nil)
 ```
 
 <img src="http://i.imgur.com/UewuE4L.jpg" width="300" height="300">
@@ -71,7 +71,7 @@ Add, rotate, and transform a circle:
 
 ```go
 p := pinhole.New()
-// ... omited DrawLines
+// ... omitted DrawLines
 p.Rotate(math.Pi/3, math.Pi/6, 0)
 
 p.Begin()
@@ -81,7 +81,7 @@ p.Translate(-0.6, -0.4, 0)
 p.Colorize(color.RGBA{255, 0, 0, 255})
 p.End()
 
-p.SavePNG("cube.png", 500, 500)
+p.SavePNG("cube.png", 500, 500, nil)
 ```
 
 <img src="http://i.imgur.com/UafJsKW.jpg" width="300" height="300">
