@@ -190,6 +190,21 @@ func (p *Pinhole) Center() {
 	p.Translate(-x, -y, -z)
 }
 
+func (p *Pinhole) DrawCube(minx, miny, minz, maxx, maxy, maxz float64) {
+	p.DrawLine(minx, maxy, minz, maxx, maxy, minz)
+	p.DrawLine(maxx, maxy, minz, maxx, miny, minz)
+	p.DrawLine(maxx, miny, minz, minx, miny, minz)
+	p.DrawLine(minx, miny, minz, minx, maxy, minz)
+	p.DrawLine(minx, maxy, maxz, maxx, maxy, maxz)
+	p.DrawLine(maxx, maxy, maxz, maxx, miny, maxz)
+	p.DrawLine(maxx, miny, maxz, minx, miny, maxz)
+	p.DrawLine(minx, miny, maxz, minx, maxy, maxz)
+	p.DrawLine(minx, maxy, minz, minx, maxy, maxz)
+	p.DrawLine(maxx, maxy, minz, maxx, maxy, maxz)
+	p.DrawLine(maxx, miny, minz, maxx, miny, maxz)
+	p.DrawLine(minx, miny, minz, minx, miny, maxz)
+}
+
 func (p *Pinhole) DrawDot(x, y, z float64, radius float64) {
 	p.DrawLine(x, y, z, x, y, z)
 	p.lines[len(p.lines)-1].scale = 10 / 0.1 * radius
