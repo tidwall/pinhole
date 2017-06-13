@@ -13,17 +13,29 @@ import (
 	"strconv"
 	"strings"
 
+	"golang.org/x/image/font/gofont/goregular"
+
 	"github.com/fogleman/gg"
+	"github.com/golang/freetype/truetype"
 	"github.com/google/btree"
 )
 
 const circleSteps = 45
+
+var gof = func() *truetype.Font {
+	gof, err := truetype.Parse(goregular.TTF)
+	if err != nil {
+		panic(err)
+	}
+	return gof
+}()
 
 type line struct {
 	x1, y1, z1 float64
 	x2, y2, z2 float64
 	nocaps     bool
 	color      color.Color
+	str        string
 	scale      float64
 	circle     bool
 	cfirst     *line
@@ -127,6 +139,9 @@ func (p *Pinhole) Scale(x, y, z float64) {
 		p.lines[i].x2 *= x
 		p.lines[i].y2 *= y
 		p.lines[i].z2 *= z
+		if len(p.lines[i].str) > 0 {
+			p.lines[i].scale *= math.Min(x, y)
+		}
 	}
 }
 
@@ -190,6 +205,19 @@ func (p *Pinhole) Center() {
 	p.Translate(-x, -y, -z)
 }
 
+func (p *Pinhole) DrawString(x, y, z float64, s string) {
+	if s != "" {
+		p.DrawLine(x, y, z, x, y, z)
+		//p.lines[len(p.lines)-1].scale = 10 / 0.1 * radius
+		p.lines[len(p.lines)-1].str = s
+	}
+}
+func (p *Pinhole) DrawRect(minx, miny, maxx, maxy, z float64) {
+	p.DrawLine(minx, maxy, z, maxx, maxy, z)
+	p.DrawLine(maxx, maxy, z, maxx, miny, z)
+	p.DrawLine(maxx, miny, z, minx, miny, z)
+	p.DrawLine(minx, miny, z, minx, maxy, z)
+}
 func (p *Pinhole) DrawCube(minx, miny, minz, maxx, maxy, maxz float64) {
 	p.DrawLine(minx, maxy, minz, maxx, maxy, minz)
 	p.DrawLine(maxx, maxy, minz, maxx, miny, minz)
@@ -293,6 +321,7 @@ func (a byDistance) Less(i, j int) bool {
 func (a byDistance) Swap(i, j int) {
 	a[i], a[j] = a[j], a[i]
 }
+
 func (p *Pinhole) Image(width, height int, opts *ImageOptions) *image.RGBA {
 	if opts == nil {
 		opts = DefaultImageOptions
@@ -319,11 +348,18 @@ func (p *Pinhole) Image(width, height int, opts *ImageOptions) *image.RGBA {
 		x2, y2, z2 := line.x2, line.y2, line.z2
 		px1, py1 := projectPoint(x1, y1, z1, fwidth, fheight, focal, opts.Scale)
 		px2, py2 := projectPoint(x2, y2, z2, fwidth, fheight, focal, opts.Scale)
-		if !onscreen(fwidth, fheight, px1, py1, px2, py2) && !line.circle {
+		if !onscreen(fwidth, fheight, px1, py1, px2, py2) && !line.circle && line.str == "" {
 			return nil
 		}
 		t1 := lineWidthAtZ(z1, focal) * opts.LineWidth * line.scale
 		t2 := lineWidthAtZ(z2, focal) * opts.LineWidth * line.scale
+		if line.str != "" {
+			sz := 10 * t1
+			c.SetFontFace(truetype.NewFace(gof, &truetype.Options{Size: sz}))
+			w, h := c.MeasureString(line.str)
+			c.DrawString(line.str, px1-w/2, py1+h*.4)
+			return nil
+		}
 		var cap1, cap2 bool
 		if !line.nocaps {
 			cap1 = caps.insert(x1, y1, z1)
